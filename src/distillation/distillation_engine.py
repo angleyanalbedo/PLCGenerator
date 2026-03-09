@@ -1,3 +1,5 @@
+from __future__ import annotations  # 必须放在文件第一行
+
 import asyncio
 import json
 import logging
@@ -12,6 +14,8 @@ from src.config_manager import ConfigManager
 # 🟢 引入你早期的正则验证器 (注意保持你的实际路径拼写 stvailder)
 from src.stvailder.stvailder import STValidator
 from src.stvailder import FastValidator
+
+from src.tools.rag_engine import OSCATRAGManager
 
 try:
     import aiofiles
@@ -192,6 +196,12 @@ class AsyncSTDistillationEngine:
         self.semaphore = asyncio.Semaphore(config.max_concurrency)
         self.running_tasks = set()
 
+        # 🟢 注入 RAG 2：实例化图谱知识库 (路径根据你的实际存放位置调整)
+        self.rag_engine = OSCATRAGManager(
+            chroma_db_path="./src/ragdate/chroma_db", 
+            json_graph_path="./src/ragdate/oscat_graph_v5_fused.json"
+        )
+
         # 🟢 新增 4：启动时，把待办任务直接塞进内存缓冲池
         for task in self.io.unprocessed_pending:
             try:
@@ -250,7 +260,7 @@ class AsyncSTDistillationEngine:
 
     async def _step_evolve(self, base_task: str) -> str:
         """任务进化"""
-        if random.random() > 0.7: return base_task 
+        if random.random() > 0.9: return base_task 
         try:
             messages = self.prompts.get_evolution_prompt(base_task)
             if isinstance(messages, str):
@@ -279,6 +289,33 @@ class AsyncSTDistillationEngine:
             task = await self._step_evolve(raw_task)
             golden_example = await self.io.get_random_golden_example()
             messages = self.prompts.get_generation_messages(task, golden_example=golden_example)
+            
+# ==========================================
+            # 🟢 注入 RAG 3：魔法发生的地方，获取上下文并塞入
+            # ==========================================
+            # 1. 🧹 清洗检索词
+            clean_task_for_rag = task.replace("```python", "").replace("```st", "").replace("```", "").strip()
+            clean_task_for_rag = clean_task_for_rag[:400]
+
+            # 2. ⚡ 兼容 Python 3.8 的异步非阻塞调用
+            loop = asyncio.get_running_loop()
+            # 使用 run_in_executor 代替 to_thread (None 表示使用默认的线程池)
+            rag_context = await loop.run_in_executor(
+                None, 
+                self.rag_engine.get_enhanced_context, 
+                clean_task_for_rag
+            )
+            
+            if rag_context and "未就绪" not in rag_context:
+                rag_injection = f"\n\n【⚠️ 必须遵守的 OSCAT 官方图谱参考】：\n请在编写代码时，强烈参考以下官方模块的实现逻辑和依赖关系：\n{rag_context}"
+                
+                # 通常 messages 的第一个元素是 System 角色，我们把它拼接进去
+                if messages and messages[0].get("role") == "system":
+                    messages[0]["content"] += rag_injection
+                else:
+                    messages.insert(0, {"role": "system", "content": rag_injection})
+            # ==========================================
+
             rejected_history = []
             
             max_retries = getattr(self.cfg, 'max_retries', 3)
@@ -304,7 +341,7 @@ class AsyncSTDistillationEngine:
 
                     # --- 校验阶段 2: AI 审查 ---
                     review = await self._step_critique(task, code)
-
+                    # review = {"passed": True, "reason": "Syntax passed, AI critique bypassed"}
                     if review.get('passed', True):
                         # === 成功路径 ===
                         result_data = {
@@ -328,11 +365,21 @@ class AsyncSTDistillationEngine:
                         return
 
                     else:
-                        # === 失败路径 (Logic) ===
+                    # === 失败路径 (Logic) ===
                         rejected_history.append({"code": code, "error": review.get('reason')})
                         messages.append({"role": "assistant", "content": code})
-                        messages.append({"role": "user", "content": f"Logic Error: {review['reason']}. Fix it."})
-
+                        
+                        # 提取质检员给出的修复代码
+                        fix_hint = review.get('suggested_fix', '')
+                        
+                        if fix_hint and len(fix_hint) > 10:
+                            # 如果质检员给了明确的修复代码，直接喂给它！
+                            prompt_msg = f"Logic Error: {review['reason']}.\n\nHere is the corrected code you MUST strictly follow and output:\n{fix_hint}"
+                        else:
+                            # 兜底：如果没有修复代码，就只给原因
+                            prompt_msg = f"Logic Error: {review['reason']}. Fix it."
+                            
+                        messages.append({"role": "user", "content": prompt_msg})
                 except Exception as e:
                     error_msg = str(e)
                     

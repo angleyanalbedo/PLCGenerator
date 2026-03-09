@@ -1,3 +1,5 @@
+from __future__ import annotations  # 必须放在文件第一行
+
 import re
 
 from src.stparser import STParser
