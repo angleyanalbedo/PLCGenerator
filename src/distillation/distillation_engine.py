@@ -377,7 +377,14 @@ class AsyncSTDistillationEngine:
                             prompt_msg = f"Logic Error: {review['reason']}.\n\nHere is the corrected code you MUST strictly follow and output:\n{fix_hint}"
                         else:
                             # 兜底：如果没有修复代码，就只给原因
-                            prompt_msg = f"Logic Error: {review['reason']}. Fix it."
+                           prompt_msg = (
+                                f"Critique Failed: {review['reason']}\n"
+                                "RETRY INSTRUCTIONS:\n"
+                                "1. Fix the error explicitly mentioned above.\n"
+                                "2. DO NOT use 'RETURN'. Use IF/ELSE to wrap the logic.\n"
+                                "3. Wrap all array indices with LIMIT(min, idx, max).\n"
+                                "4. Output ONLY the fully corrected JSON block."
+                            )
                             
                         messages.append({"role": "user", "content": prompt_msg})
                 except Exception as e:
