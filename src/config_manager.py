@@ -61,3 +61,7 @@ class ConfigManager:
     def failed_file(self) -> str: return self.get_path('failed_file')
     @property
     def error_log_file(self) -> str: return self.get_path('error_log_file')
+    @property
+    def chroma_db_file(self) -> str: return self.get_path('ragdata/chroma_db')
+    @property
+    def json_graph_path(self) -> str: return self.get_path('ragdata/oscat_graph_v5_fused.json')

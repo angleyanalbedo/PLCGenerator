@@ -196,10 +196,9 @@ class AsyncSTDistillationEngine:
         self.semaphore = asyncio.Semaphore(config.max_concurrency)
         self.running_tasks = set()
 
-        # 🟢 注入 RAG 2：实例化图谱知识库 (路径根据你的实际存放位置调整)
         self.rag_engine = OSCATRAGManager(
-            chroma_db_path="./src/ragdate/chroma_db", 
-            json_graph_path="./src/ragdate/oscat_graph_v5_fused.json"
+            chroma_db_path=config.chroma_db_file,
+            json_graph_path=config.json_graph_path
         )
 
         # 🟢 新增 4：启动时，把待办任务直接塞进内存缓冲池
