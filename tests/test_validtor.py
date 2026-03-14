@@ -20,28 +20,19 @@ from pathlib import Path
 from src.xmlvalidtor import IEC61131Validator, ValidationException
 
 
-def test_validator():
+def test_validator(xsd_path_str: str, xml_dir_str: str):
     """IEC 61131-10 验证器测试"""
+    xsd_path = Path(xsd_path_str)
+    xml_dir = Path(xml_dir_str)
 
-    # 获取测试文件所在目录 (tests/)
-    tests_dir = Path(__file__).parent
-
-    # 项目根目录是 tests/ 的父目录
-    project_root = tests_dir.parent
-
-    # 文件路径配置（在 project_root/resource/xsd/ 下）
-    xsd_path = project_root / "resource" / "xsd" / "IEC61131_10_Ed1_0.xsd"
-    example_xml = project_root / "resource" / "xsd" / "IEC61131_10_Ed1_0_Example.xml"
-
-    print(f"项目根目录: {project_root}")
     print(f"XSD 路径: {xsd_path}")
-    print(f"XML 路径: {example_xml}")
+    print(f"XML 目录: {xml_dir}")
 
     # 检查文件是否存在
     if not xsd_path.exists():
         raise FileNotFoundError(f"XSD 文件不存在: {xsd_path}")
-    if not example_xml.exists():
-        raise FileNotFoundError(f"XML 文件不存在: {example_xml}")
+    if not xml_dir.exists() or not xml_dir.is_dir():
+        raise FileNotFoundError(f"XML 目录不存在: {xml_dir}")
 
     # 1. 初始化验证器
     print(f"\n加载 XSD: {xsd_path.name}")
@@ -49,9 +40,16 @@ def test_validator():
     print(f"Schema 版本: {validator.get_schema_info().get('schema_version', 'unknown')}")
     print("-" * 50)
 
-    # 2. 验证示例文件
-    print(f"\n验证示例文件: {example_xml.name}")
-    is_valid, errors = validator.validate_file(example_xml)
+    # 2. 验证示例文件 (从目录中找一个)
+    try:
+        example_xml = next(xml_dir.glob("*.xml"))
+        print(f"\n验证示例文件: {example_xml.name}")
+        is_valid, errors = validator.validate_file(example_xml)
+    except StopIteration:
+        is_valid = True
+        errors = []
+        example_xml = None
+        print("\n目录中未找到 XML 文件，跳过单个文件验证。")
 
     if not is_valid:
         print(f"❌ 验证失败，发现 {len(errors)} 个问题:")
@@ -95,9 +93,8 @@ def test_validator():
 
     print("-" * 50)
 
-    # 4. 批量验证 project_root/resource/xsd/ 下所有 xml 文件
+    # 4. 批量验证指定目录下的所有 xml 文件
     print("\n批量验证...")
-    xml_dir = project_root / "resource" / "xsd"
     xml_files = list(xml_dir.glob("*.xml"))
 
     if xml_files:
@@ -121,20 +118,20 @@ def test_validator():
 
     # 5. 严格模式测试
     print("\n严格模式测试...")
-    try:
-        validator.assert_valid(example_xml)
-        print(f"✅ assert_valid: {example_xml.name} 验证通过")
-    except ValidationException as e:
-        print(f"❌ assert_valid 失败: {e}")
+    if example_xml:
+        try:
+            validator.assert_valid(example_xml)
+            print(f"✅ assert_valid: {example_xml.name} 验证通过")
+        except ValidationException as e:
+            print(f"❌ assert_valid 失败: {e}")
+    else:
+        print("无 XML 示例文件，跳过严格模式测试。")
 
 
-def test_single_file():
+def test_single_file(xsd_path_str: str, xml_file_path: str):
     """快速测试单个文件"""
-    # 从 tests/ 目录找到项目根目录
-    project_root = Path(__file__).parent.parent
-
-    xsd_path = project_root / "resource" / "xsd" / "IEC61131_10_Ed1_0.xsd"
-    example_xml = project_root / "resource" / "xsd" / "IEC61131_10_Ed1_0_Example.xml"
+    xsd_path = Path(xsd_path_str)
+    example_xml = Path(xml_file_path)
 
     print(f"XSD: {xsd_path}")
     print(f"XML: {example_xml}")
@@ -156,5 +153,10 @@ def test_single_file():
 
 
 if __name__ == "__main__":
-    test_validator()
-    # test_single_file()
+    project_root = Path(__file__).parent.parent
+    default_xsd = str(project_root / "resource" / "xsd" / "IEC61131_10_Ed1_0.xsd")
+    default_xml_dir = str(project_root / "resource" / "xsd")
+    default_xml_file = str(project_root / "resource" / "xsd" / "IEC61131_10_Ed1_0_Example.xml")
+
+    test_validator(xsd_path_str=default_xsd, xml_dir_str=default_xml_dir)
+    # test_single_file(xsd_path_str=default_xsd, xml_file_path=default_xml_file)

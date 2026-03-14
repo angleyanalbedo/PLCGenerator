@@ -20,51 +20,63 @@ from src.xmlvalidtor import IEC61131Validator
 import xml.dom.minidom
 import xml.dom.minidom
 from pathlib import Path
+import json
 
 
-def test_fbdunparser():
-    # 模拟从 STAstBuilder 解析出来的 AST 字典
-    sample_ast = {
-        "unit_type": "PROGRAM",
-        "name": "Main",
-        "body": [
-            {
-                "stmt_type": "assign",
-                "target": {"expr_type": "var", "name": "Y"},
-                "value": {
-                    "expr_type": "binop",
-                    "op": "AND",
-                    "left": {"expr_type": "var", "name": "A"},
-                    "right": {
-                        "expr_type": "unaryop",
-                        "op": "NOT",
-                        "operand": {"expr_type": "var", "name": "B"}
+def test_fbdunparser(xsd_path_str: str, ast_file_path: str = None):
+    if ast_file_path:
+        try:
+            with open(ast_file_path, 'r', encoding='utf-8') as f:
+                sample_ast = json.load(f)
+            print(f"📄 从文件 '{ast_file_path}' 加载 AST。")
+        except Exception as e:
+            print(f"❌ 读取或解析 AST 文件失败: {e}")
+            return
+    else:
+        print("ℹ️ 未提供 AST 文件，使用内置示例。")
+        # 模拟从 STAstBuilder 解析出来的 AST 字典
+        sample_ast = {
+            "unit_type": "PROGRAM",
+            "name": "Main",
+            "body": [
+                {
+                    "stmt_type": "assign",
+                    "target": {"expr_type": "var", "name": "Y"},
+                    "value": {
+                        "expr_type": "binop",
+                        "op": "AND",
+                        "left": {"expr_type": "var", "name": "A"},
+                        "right": {
+                            "expr_type": "unaryop",
+                            "op": "NOT",
+                            "operand": {"expr_type": "var", "name": "B"}
+                        }
                     }
+                },
+                {
+                    "stmt_type": "if",
+                    "cond": {"expr_type": "var", "name": "C"},
+                    "then_body": [
+                        {"stmt_type": "assign", "target": {"expr_type": "var", "name": "Z"},
+                         "value": {"expr_type": "literal", "value": "10"}}
+                    ],
+                    "else_body": [
+                        {"stmt_type": "assign", "target": {"expr_type": "var", "name": "Z"},
+                         "value": {"expr_type": "literal", "value": "20"}}
+                    ]
                 }
-            },
-            {
-                "stmt_type": "if",
-                "cond": {"expr_type": "var", "name": "C"},
-                "then_body": [
-                    {"stmt_type": "assign", "target": {"expr_type": "var", "name": "Z"},
-                     "value": {"expr_type": "literal", "value": "10"}}
-                ],
-                "else_body": [
-                    {"stmt_type": "assign", "target": {"expr_type": "var", "name": "Z"},
-                     "value": {"expr_type": "literal", "value": "20"}}
-                ]
-            }
-        ]
-    }
+            ]
+        }
 
     # 1. 运行转换器
     unparser = FBDXmlUnparser()
     xml_output = unparser.unparse_pou(sample_ast)
 
     # 2. XSD 校验
-    tests_dir = Path(__file__).parent
-    project_root = tests_dir.parent
-    xsd_path = project_root / "resource" / "xsd" / "IEC61131_10_Ed1_0.xsd"
+    xsd_path = Path(xsd_path_str)
+    if not xsd_path.exists():
+        print(f"❌ 错误: XSD 文件 '{xsd_path}' 不存在")
+        return
 
     # 假设你已经有了 IEC61131Validator 类
     validator = IEC61131Validator(xsd_path)

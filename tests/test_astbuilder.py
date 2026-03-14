@@ -21,8 +21,22 @@ from src.stunparser import STUnparser
 
 # from src.stparser.st_unparser import STUnparser # 你的老版 unparser
 
-def test_new_engine():
-    code = """
+def test_new_engine(code: str = None, file_path: str = None):
+    
+    if file_path:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                code_from_file = f.read()
+            print(f"📄 从文件 '{file_path}' 加载代码。")
+            code = code_from_file
+        except Exception as e:
+            print(f"❌ 读取文件失败: {e}")
+            return
+    elif code:
+        print("⌨️ 使用命令行传入的代码。")
+    else:
+        print("ℹ️ 未提供代码，使用内置示例。")
+        code = """
     PROGRAM Main
     VAR
         A : INT := 10;
@@ -52,4 +66,9 @@ def test_new_engine():
 
 
 if __name__ == "__main__":
-    test_new_engine()
+    # Example: python test_astbuilder.py ../resource/st_source_code/ACOSH.ST
+    import sys
+    if len(sys.argv) > 1:
+        test_new_engine(file_path=sys.argv[1])
+    else:
+        test_new_engine()

@@ -19,20 +19,19 @@ import asyncio
 from openai import AsyncOpenAI, APIConnectionError, AuthenticationError
 
 
-async def test_vllm_connection():
+async def test_vllm_connection(base_url: str, api_key: str):
     """
     测试 vLLM 服务连通性
-    默认连接 http://localhost:8000/v1
     """
 
     # 初始化客户端（vLLM 兼容 OpenAI API 格式）
     client = AsyncOpenAI(
-        base_url="http://localhost:8000/v1",  # vLLM 默认端口和路径
-        api_key="not-needed-for-vllm"  # vLLM 本地部署通常不需要真实 API key
+        base_url=base_url,
+        api_key=api_key
     )
 
     print("🔍 正在测试 vLLM 服务连通性...")
-    print(f"   目标地址: http://localhost:8000/v1")
+    print(f"   目标地址: {base_url}")
     print("-" * 50)
 
     try:
@@ -79,11 +78,11 @@ async def test_vllm_connection():
         return False
 
 
-async def test_streaming():
+async def test_streaming(base_url: str, api_key: str):
     """可选：测试流式输出"""
     client = AsyncOpenAI(
-        base_url="http://localhost:8000/v1",
-        api_key="industrial-coder"
+        base_url=base_url,
+        api_key=api_key
     )
 
     print("\n🌊 额外测试: 流式输出...")
@@ -110,8 +109,10 @@ async def test_streaming():
 
 if __name__ == "__main__":
     # 运行基础连通性测试
-    connected = asyncio.run(test_vllm_connection())
+    default_url = "http://localhost:8000/v1"
+    default_key = "not-needed"
+    connected = asyncio.run(test_vllm_connection(base_url=default_url, api_key=default_key))
 
     # 如果基础测试通过，可选运行流式测试
     if connected:
-        asyncio.run(test_streaming())
+        asyncio.run(test_streaming(base_url=default_url, api_key=default_key))

@@ -16,16 +16,26 @@ Any unauthorized copying, modification, or distribution is strictly prohibited.
 """
 
 import random
+import json
 
 from lark import Token
 
 from strewriter.st_rewriter import STRewriterDeprecated
 
 
-def run_tests():
+def run_tests(seed: int = 42, rename_map_str: str = '{"oldVar": "newVar"}'):
     # 固定随机种子，确保测试结果可复现
-    random.seed(42)
-    rewriter = STRewriterDeprecated(rename_map={"oldVar": "newVar"})
+    random.seed(seed)
+    try:
+        rename_map = json.loads(rename_map_str)
+        if not isinstance(rename_map, dict):
+            raise ValueError("Rename map a de ser un diccionario.")
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"❌ 无效的 rename map JSON 字符串: {e}")
+        print(f"   请使用类似格式: '{{\"old_name\":\"new_name\"}}'")
+        rename_map = {}
+
+    rewriter = STRewriterDeprecated(rename_map=rename_map)
 
     print("=== 测试 1: IDENT 变量重命名 ===")
     t1 = rewriter.IDENT(Token("IDENT", "oldVar"))  # 命中 rename_map
