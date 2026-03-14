@@ -224,5 +224,3 @@ def debug_single_st(file_path: str):
     except Exception as e:
         print(f"❌ Unparse 失败: {str(e)}")
 
-def test_single_st():
-    debug_single_st("../resource/st_source_code/ACOSH.ST")

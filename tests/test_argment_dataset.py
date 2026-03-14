@@ -25,3 +25,7 @@ def test_argment_dataset():
         num_variants=3
     )
     augmenter.run()
+
+
+if __name__ == "__main__":
+    test_argment_dataset()
