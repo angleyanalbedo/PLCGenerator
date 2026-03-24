@@ -21,7 +21,7 @@ except Exception as e:
 # 2. 配置硅基流动 (SiliconFlow) 大模型 API
 # ==========================================
 # ⚠️ 注意：请将下面的字符串替换为你在硅基流动后台生成的真实 API KEY
-API_KEY = "sk-pymxmunzcyigfzdtvxdopsesszkicuhkmtpikqlqzaczgppe"  
+API_KEY = ""  
 BASE_URL = "https://api.siliconflow.cn/v1"
 
 client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
