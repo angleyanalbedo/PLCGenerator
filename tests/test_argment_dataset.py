@@ -15,27 +15,18 @@ Any unauthorized copying, modification, or distribution is strictly prohibited.
 -----------------------------------------------------------------------------
 """
 
-from src.staugment import *
+from src.staugment import DataAugmenter
 
-def test_argment_dataset(
-    input_dir: str,
-    output_dir: str,
-    ext: str,
-    num_variants: int
-):
+def test_argment_dataset(input_dir, tmp_path, ext, num_variants):
+    """
+    测试数据增强功能
+    """
+    output_dir = tmp_path / "augmented_output"
     augmenter = DataAugmenter(
         input_dir=input_dir,
-        output_dir=output_dir,
+        output_dir=str(output_dir),
         ext=ext,
         num_variants=num_variants
     )
+    # 确保运行不报错
     augmenter.run()
-
-
-if __name__ == "__main__":
-    test_argment_dataset(
-        input_dir="../data/IEC_61131-3_ST",
-        output_dir="../data/IEC_61131-3_ST_CLEAN",
-        ext=".json",
-        num_variants=3
-    )
