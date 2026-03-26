@@ -159,7 +159,7 @@ if __name__ == "__main__":
 
 ## 📄 开源协议
 
-* **代码框架**: [MIT License](https://www.google.com/search?q=MIT+License+text)
+* **代码框架**: [Business Source License 1.1](https://mariadb.com/bsl11/)
 * **衍生数据集**: [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/)
 
 ## Credit
