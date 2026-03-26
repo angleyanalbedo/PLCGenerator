@@ -290,4 +290,40 @@ def ast_to_dict(node: Any) -> Any:
             "name": _stringify_complex_var(node)
         })
 
+    elif isinstance(node, CaseStmt):
+        res.update({
+            "stmt_type": "case",
+            "type": "case_statement",
+            "cond": ast_to_dict(node.cond),
+            "entries": ast_to_dict(node.entries),
+            "else_body": ast_to_dict(node.else_body)
+        })
+
+    elif isinstance(node, CaseEntry):
+        res.update({
+            "conds": ast_to_dict(node.conds),
+            "body": ast_to_dict(node.body)
+        })
+
+    elif isinstance(node, CaseCond):
+        res.update({
+            "text": node.text
+        })
+
+    elif isinstance(node, WhileStmt):
+        res.update({
+            "stmt_type": "while",
+            "type": "while_loop",
+            "cond": ast_to_dict(node.cond),
+            "body": ast_to_dict(node.body)
+        })
+
+    elif isinstance(node, RepeatStmt):
+        res.update({
+            "stmt_type": "repeat",
+            "type": "repeat_loop",
+            "until": ast_to_dict(node.until),
+            "body": ast_to_dict(node.body)
+        })
+
     return res
