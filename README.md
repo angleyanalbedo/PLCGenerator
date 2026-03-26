@@ -126,7 +126,6 @@ if __name__ == "__main__":
 * [x] **MatIEC Support**: 增加 MatIEC 作为编译器检查。
 * [x] **Multi-Backend Support**: 增加对 Hugging Face TGI 和本地 Llama.cpp 的原生支持。
 * [x] **ST to FBD/LD Pipeline**: 完成 IEC 61131-10 标准下的图形化代码无损转换。
-* [ ] **STSlicer (代码切片器)**：持续优化基于数据流的程序切片，提取关键逻辑片段以提升长代码理解力。
 
 ---
 
@@ -165,7 +164,6 @@ if __name__ == "__main__":
 
 ## Credit
 
-* [angleyanalbedo/ST_Slicing](https://www.google.com/search?q=https://github.com/angleyanalbedo/ST_Slicing) - 核心切片与 AST 灵感来源
 * [AICPS/PLCBEAD_PLCEmbed](https://github.com/AICPS/PLCBEAD_PLCEmbed)
 * [blank734](https://github.com/blank374) - 蒸馏部分基础框架
 
