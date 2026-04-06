@@ -1,20 +1,11 @@
-import json
 import pytest
 from pathlib import Path
-from tqdm import tqdm
-
-from src.fbdunparser import FBDXmlUnparser
-from src.xmlvalidtor import IEC61131Validator
-from src.stparser.anltr4 import STParser
+from src.fbdunparser.pipeline import st_to_fbd_pipeline, debug_single_st
 
 def test_st_to_fbd_pipeline(input_dir, xsd_path_str, tmp_path):
     """
     测试 ST -> FBD 转换全链路
     """
-    # 使用临时目录作为输出
-    output_dir = tmp_path / "fbd_output"
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     input_path = Path(input_dir)
     xsd_path = Path(xsd_path_str)
 
@@ -23,98 +14,51 @@ def test_st_to_fbd_pipeline(input_dir, xsd_path_str, tmp_path):
     if not xsd_path.exists():
         pytest.skip(f"XSD 校验文件 '{xsd_path_str}' 不存在")
 
-    parser = STParser()
-    unparser = FBDXmlUnparser()
-    validator = IEC61131Validator(xsd_path)
+    # 调用生产级流水线功能
+    result = st_to_fbd_pipeline(
+        input_folder=str(input_path),
+        xsd_path=str(xsd_path),
+        output_folder=str(tmp_path / "fbd_output")
+    )
 
-    st_files = list(input_path.rglob("*.st"))
-    if not st_files:
-        pytest.skip(f"在 '{input_dir}' 中没找到任何 .st 文件")
+    # 断言验证结果
+    assert result["total"] > 0, "没有找到任何ST文件"
+    assert result["success"] >= 0, "成功计数不能为负"
+    assert result["parse_fail"] + result["unparse_fail"] + result["xsd_fail"] + result["save_fail"] + result["success"] == result["total"], "统计结果不一致"
 
-    print(f"🔍 正在执行全链路测试: {len(st_files)} 个 ST 源码文件...")
+    # 检查输出目录
+    output_files = list(tmp_path.rglob("*.xml"))
+    assert len(output_files) >= result["success"], "输出文件数量少于成功转换数量"
 
-    stats = {
-        "success": 0,
-        "parse_fail": 0,
-        "unparse_fail": 0,
-        "xsd_fail": 0
-    }
-    failure_details = []
+def test_debug_single_st(xsd_path_str, tmp_path):
+    """
+    测试单个ST文件调试功能
+    """
+    xsd_path = Path(xsd_path_str)
+    if not xsd_path.exists():
+        pytest.skip(f"XSD 校验文件 '{xsd_path_str}' 不存在")
 
-    for file_path in tqdm(st_files, desc="Processing Pipeline"):
-        try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                code = f.read()
+    # 创建测试ST文件
+    test_st = tmp_path / "test.st"
+    test_st.write_text("""
+FUNCTION_BLOCK Test
+VAR_INPUT
+    A: BOOL;
+    B: BOOL;
+END_VAR
+VAR_OUTPUT
+    C: BOOL;
+END_VAR
+C := A AND B;
+END_FUNCTION_BLOCK
+""", encoding="utf-8")
 
-            # 1. Parse
-            parse_result = parser.get_ast(code)
-            if parse_result.get("status") != "success":
-                stats["parse_fail"] += 1
-                failure_details.append({
-                    "file": file_path.name,
-                    "stage": "AST Parse",
-                    "error": parse_result.get("message", "Unknown Parse Error")
-                })
-                continue
+    # 调用调试功能
+    debug_result = debug_single_st(str(test_st), str(xsd_path))
 
-            ast_data = parse_result.get("ast") or parse_result.get("data")
-            if not ast_data:
-                stats["parse_fail"] += 1
-                failure_details.append({"file": file_path.name, "stage": "AST Parse", "error": "AST data is empty"})
-                continue
-
-            # 2. Unparse
-            xml_output = ""
-            try:
-                xml_output = unparser.unparse(ast_data)
-                if not xml_output.strip():
-                    raise ValueError("Unparser returned empty string")
-            except Exception as e:
-                stats["unparse_fail"] += 1
-                failure_details.append({
-                    "file": file_path.name,
-                    "stage": "XML Unparse",
-                    "error": str(e)
-                })
-                continue
-
-            # 3. Validate
-            is_valid, errors = validator.validate_string(xml_output)
-            if not is_valid:
-                stats["xsd_fail"] += 1
-                failure_details.append({
-                    "file": file_path.name,
-                    "stage": "XSD Validate",
-                    "error": " | ".join(errors[:3])
-                })
-                continue
-
-            # 4. Save
-            try:
-                out_file_path = output_dir / f"{file_path.stem}.xml"
-                out_file_path.write_text(xml_output, encoding="utf-8")
-                stats["success"] += 1
-            except Exception as e:
-                failure_details.append({
-                    "file": file_path.name,
-                    "stage": "File Save Error",
-                    "error": f"写入本地文件失败: {str(e)}"
-                })
-                continue
-
-        except Exception as e:
-            stats["parse_fail"] += 1
-            failure_details.append({
-                "file": file_path.name,
-                "stage": "Runtime Crash",
-                "error": str(e)
-            })
-
-    # 保存日志
-    if failure_details:
-        log_file_path = output_dir / "failure_details_log.json"
-        with open(log_file_path, "w", encoding="utf-8") as log_file:
-            json.dump(failure_details, log_file, indent=4, ensure_ascii=False)
-
-    print(f"✅ 成功: {stats['success']}, 失败: {len(st_files) - stats['success']}")
-
+    # 断言验证
+    assert debug_result.get("success") == True, "调试应该成功"
+    assert "st_code" in debug_result
+    assert "ast" in debug_result
+    assert "xml_output" in debug_result
+    assert debug_result["validation"]["is_valid"] == True
