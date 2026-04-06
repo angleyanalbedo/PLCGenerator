@@ -22,6 +22,8 @@ app.add_typer(convert_app, name="convert")
 app.add_typer(process_app, name="process")
 app.add_typer(validate_app, name="validate")
 app.add_typer(test_app, name="test")
+rag_app = typer.Typer(help="🧠 RAG知识库相关功能")
+app.add_typer(rag_app, name="rag")
 
 # ==============================================================================
 # 🧠 蒸馏功能 (distill)
@@ -132,6 +134,35 @@ def validate_ast_command(
 ):
     from src.stparser.pipeline import parse_and_display_ast
     parse_and_display_ast(code=code, file_path=file_path)
+
+# ==============================================================================
+# 🧠 RAG知识库功能 (rag)
+# ==============================================================================
+@rag_app.command(name="build-db", help="构建OSCAT知识库向量数据库。")
+def rag_build_db_command(
+    output_path: str = typer.Option(None, help="数据库输出路径，默认使用系统应用数据目录"),
+    pdf_dir: str = typer.Option(None, help="包含OSCAT PDF手册的目录，默认使用内置资源"),
+    chunk_size: int = typer.Option(1200, help="文本块大小"),
+    overlap: int = typer.Option(200, help="块重叠大小")
+):
+    from src.ragdate.build_vector_db import build_vector_db
+    build_vector_db(
+        output_path=output_path,
+        pdf_dir=pdf_dir,
+        chunk_size=chunk_size,
+        overlap=overlap
+    )
+
+@rag_app.command(name="ask", help="向工业级双路RAG编程助理提问。")
+def rag_ask_command(
+    query: str = typer.Argument(..., help="要提问的工业控制问题"),
+    api_key: str = typer.Option("", help="SiliconFlow API Key"),
+    model: str = typer.Option("deepseek-ai/DeepSeek-V3.2", help="要使用的模型名称"),
+    stream: bool = typer.Option(True, help="是否流式输出结果")
+):
+    from src.ragdate.dual_rag_coder import DualRagCoder
+    coder = DualRagCoder(api_key=api_key, model=model)
+    coder.ask(query, stream=stream)
 
 # ==============================================================================
 # 🔬 测试功能 (test) - 保留原有所有测试命令

@@ -19,16 +19,64 @@ import chromadb
 import json
 import logging
 import os
+from pathlib import Path
+from appdirs import user_data_dir
+from importlib.resources import files
 
 logger = logging.getLogger(__name__)
+
+APP_NAME = "industrial-st-distiller"
+APP_AUTHOR = "IndustrialSTTeam"
 
 class OSCATRAGManager:
     """
     OSCAT 官方图谱知识库检索工具 (GraphRAG)
     """
-    def __init__(self, chroma_db_path: str = "./src/ragdate/chroma_db", json_graph_path: str = "./src/ragdate/oscat_graph_v5_fused.json"):
-        self.chroma_db_path = chroma_db_path
-        self.json_graph_path = json_graph_path
+    def __init__(self, config=None, chroma_db_path: str = None, json_graph_path: str = None):
+        """
+        初始化OSCAT RAG管理器
+
+        Args:
+            config: ConfigManager实例，优先从配置读取参数
+            chroma_db_path: 自定义Chroma数据库路径，优先级高于config
+            json_graph_path: 自定义OSCAT图数据路径，优先级高于config
+        """
+        # 从ConfigManager读取配置（如果提供）
+        if config is not None:
+            if chroma_db_path is None:
+                chroma_db_path = config.chroma_db_file
+            if json_graph_path is None:
+                json_graph_path = config.json_graph_path
+
+        # 处理ChromaDB路径
+        if chroma_db_path is None:
+            # 优先使用项目内置路径
+            project_root = Path(__file__).parent.parent.parent
+            default_chroma_path = project_root / "resource" / "rag" / "chroma_db"
+            if default_chroma_path.exists():
+                self.chroma_db_path = str(default_chroma_path)
+            else:
+                # 找不到则使用系统标准应用数据目录
+                self.chroma_db_path = str(Path(user_data_dir(APP_NAME, APP_AUTHOR)) / "chroma_db")
+        else:
+            self.chroma_db_path = chroma_db_path
+
+        # 处理JSON图数据路径
+        if json_graph_path is None:
+            # 优先使用项目内置路径
+            project_root = Path(__file__).parent.parent.parent
+            default_json_path = project_root / "resource" / "rag" / "oscat_graph_v5_fused.json"
+            if default_json_path.exists():
+                self.json_graph_path = str(default_json_path)
+            else:
+                # 找不到则尝试从包内资源加载
+                try:
+                    self.json_graph_path = str(files("src.ragdate").joinpath("oscat_graph_v5_fused.json"))
+                except:
+                    logger.warning(f"⚠️ 未找到图谱文件: {default_json_path}，请确认路径。")
+                    self.json_graph_path = ""
+        else:
+            self.json_graph_path = json_graph_path
         
         # 1. 确保文件和数据库存在
         if not os.path.exists(self.json_graph_path):
