@@ -1,22 +1,5 @@
-"""
------------------------------------------------------------------------------
-PROJECT: [PLCGenerator]
-AUTHOR: [angleyanalbedo]
-DATE: Created in January 2026 (Winter Vacation Project)
-COPYRIGHT: (c) 2026 [angleyanalbedo]. All Rights Reserved.
-
-LEGAL NOTICE:
-This software was developed independently by the author during personal time 
-and does not utilize any laboratory resources, proprietary data, or commercial 
-funding from my lab. 
-
-This source code is the sole intellectual property of the author. 
-Any unauthorized copying, modification, or distribution is strictly prohibited.
------------------------------------------------------------------------------
-"""
-
 import json
-import os
+import pytest
 from pathlib import Path
 from tqdm import tqdm
 
@@ -25,41 +8,32 @@ from src.stparser import STParser
 from src.xmlvalidtor import IEC61131Validator
 
 
-def test_st_to_ld_pipeline(
-        input_folder: str = "../resource/st_source_code",  # 你的 ST 源码目录
-        xsd_rel_path: str = "../resource/xsd/IEC61131_10_Ed1_0.xsd",
-        output_rel_dir: str = "../data/ld_direct_output"  # 直接生成的 LD 存放目录
-):
-    # 1. 初始化所有组件
-    parser = STParser()
-    ld_unparser = LDXmlUnparser()
-
-    input_path = Path(input_folder)
-    xsd_path = Path(xsd_rel_path)
-    output_dir = Path(output_rel_dir)
-
-    # 安全创建输出目录
+def test_st_to_ld_pipeline(input_dir, xsd_path_str, tmp_path):
+    """
+    测试 ST -> LD 转换全链路
+    """
+    # 使用临时目录作为输出，避免污染项目
+    output_dir = tmp_path / "ld_direct_output"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    if not input_path.exists() or not input_path.is_dir():
-        print(f"❌ 错误: 源码文件夹 '{input_folder}' 不存在")
-        return
-    if not xsd_path.exists():
-        print(f"❌ 错误: XSD 校验文件 '{xsd_path}' 不存在")
-        return
+    input_path = Path(input_dir)
+    xsd_path = Path(xsd_path_str)
 
+    if not input_path.exists():
+        pytest.skip(f"源码文件夹 '{input_dir}' 不存在")
+    if not xsd_path.exists():
+        pytest.skip(f"XSD 校验文件 '{xsd_path_str}' 不存在")
+
+    parser = STParser()
+    ld_unparser = LDXmlUnparser()
     validator = IEC61131Validator(xsd_path)
 
     st_files = list(input_path.rglob("*.st"))
-    total_files = len(st_files)
+    if not st_files:
+        pytest.skip(f"在 '{input_dir}' 中没找到任何 .st 文件")
 
-    if total_files == 0:
-        print(f"❓ 警告: 在 '{input_folder}' 中没找到任何 .st 文件")
-        return
+    print(f"🔍 正在执行直接生成 LD 全链路测试: {len(st_files)} 个 ST 源码文件...")
 
-    print(f"🔍 正在执行直接生成 LD 全链路测试: {total_files} 个 ST 源码文件...")
-
-    # 统计数据盘
     stats = {
         "success": 0,
         "parse_fail": 0,
@@ -71,11 +45,10 @@ def test_st_to_ld_pipeline(
 
     for file_path in tqdm(st_files, desc="ST -> LD Pipeline"):
         try:
-            # --- 阶段 0: 读取源码 ---
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 code = f.read()
 
-            # --- 阶段 1: ST 解析为 AST ---
+            # 1. Parse
             parse_result = parser.get_ast(code)
             if parse_result.get("status") != "success":
                 stats["parse_fail"] += 1
@@ -92,13 +65,11 @@ def test_st_to_ld_pipeline(
                 failure_details.append({"file": file_path.name, "stage": "AST Parse", "error": "AST data is empty"})
                 continue
 
-            # --- 阶段 2: AST 直接还原为 LD XML ---
-            ld_xml_output = ""
+            # 2. Unparse
             try:
-                # 🌟 核心：召唤你刚写的 LDXmlUnparser
                 ld_xml_output = ld_unparser.unparse(ast_data)
                 if not ld_xml_output or not ld_xml_output.strip():
-                    raise ValueError("LD Unparser 返回了空字符串 (可能是遇到了不支持的语句，如 IF/FOR)")
+                    raise ValueError("LD Unparser 返回了空字符串")
             except Exception as e:
                 stats["unparse_fail"] += 1
                 failure_details.append({
@@ -108,19 +79,18 @@ def test_st_to_ld_pipeline(
                 })
                 continue
 
-            # --- 阶段 3: XSD 严格校验 ---
+            # 3. Validate
             is_valid, errors = validator.validate_string(ld_xml_output)
             if not is_valid:
                 stats["xsd_fail"] += 1
                 failure_details.append({
                     "file": file_path.name,
                     "stage": "XSD Validate",
-                    # 防崩溃：强制转 str
                     "error": " | ".join([str(err) for err in errors[:3]])
                 })
                 continue
 
-            # --- 阶段 4: 落地保存纯净合规的 LD XML ---
+            # 4. Save
             try:
                 out_file_path = output_dir / f"{file_path.stem}_Direct_LD.xml"
                 out_file_path.write_text(ld_xml_output, encoding="utf-8")
@@ -137,44 +107,10 @@ def test_st_to_ld_pipeline(
                 "error": str(e)
             })
 
-    # --- 🖨️ 打印最终大盘战报 ---
-    print("\n" + "=" * 60)
-    print("📊 ST -> AST -> LD 直接渲染测试战报")
-    print("=" * 60)
-    print(f"📁 源码输入: {input_path.absolute()}")
-    print(f"📁 梯形图输出: {output_dir.absolute()}")
-    print(f"📦 测试总数: {total_files}")
-    print("-" * 60)
-
-    success_rate = (stats['success'] / total_files) * 100 if total_files > 0 else 0
-    print(f"✅ 完美通关 (生成合法 LD): {stats['success']} ({success_rate:.1f}%)")
-    print(f"❌ 阶段1 AST解析失败:    {stats['parse_fail']}")
-    print(f"❌ 阶段2 LD渲染失败:     {stats['unparse_fail']} (包含未实现的图形节点跳过)")
-    print(f"❌ 阶段3 XSD校验失败:    {stats['xsd_fail']}")
-    print(f"❌ 阶段4 文件保存失败:   {stats['io_fail']}")
-    print("-" * 60)
-
+    # 保存日志
     if failure_details:
-        print("\n🚩 失败清单 (前 10 个):")
-        for i, detail in enumerate(failure_details[:10]):
-            print(f"{i + 1}. [{detail['file']}] @ {detail['stage']} -> {detail['error']}")
-
-        if len(failure_details) > 10:
-            print(f"... 以及另外 {len(failure_details) - 10} 个错误，请检查日志。")
-
-    print("=" * 60)
-    # ==========================================
-    # 🌟 修复谎言：真正保存日志文件！
-    # ==========================================
-    log_file_path = output_dir / "failure_details_log.json"
-    try:
+        log_file_path = output_dir / "failure_details_log.json"
         with open(log_file_path, "w", encoding="utf-8") as log_file:
-            # 将错误列表格式化保存为 JSON，方便阅读和后续分析
             json.dump(failure_details, log_file, indent=4, ensure_ascii=False)
-        print(f"\n📂 [真·日志] 完整的 {len(failure_details)} 条错误记录已保存至: \n   👉 {log_file_path.absolute()}")
-    except Exception as e:
-        print(f"\n❌ 警告: 尝试保存日志文件时失败: {e}")
 
-
-if __name__ == "__main__":
-    test_st_to_ld_pipeline()
+    print(f"✅ 成功: {stats['success']}, 失败: {len(st_files) - stats['success']}")

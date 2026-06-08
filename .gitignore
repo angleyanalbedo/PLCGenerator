@@ -19,4 +19,11 @@ src/distillation/__pycache__
 src/fbdunparser/__pycache__
 src/xmlvalidtor/__pycache__
 src/fbd2ldconverter/__pycache__
+src/fbd2ldconverter/__pycache__
 src/ldunparser/__pycache__
+.aider*
+CLAUDE.md
+*.egg-info/
+build/
+dist/
+*.egg

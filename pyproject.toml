@@ -1,18 +1,56 @@
 [project]
-name = "stcodegenerate"
+name = "industrial-st-distiller"
 version = "0.1.0"
-description = "Add your description here"
+description = "工业级IEC 61131-3 Structured Text (ST) 代码生成、校验、转换全链路工具链，支持ST↔FBD↔LD互转，用于工业控制大模型训练数据集构建"
+readme = "README.md"
+authors = [
+  { name="Industrial ST Team", email="your@email.com" }
+]
+license = { text="BSL-1.1" }
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Manufacturing",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Scientific/Engineering :: Industrial Control",
+]
 requires-python = ">=3.10"
 dependencies = [
     "aiofiles>=25.1.0",
     "antlr4-python3-runtime>=4.13.2",
-    "gradio>=3.36.1",
+    "appdirs>=1.4.4",
+    "chromadb>=1.5.5",
     "jinja2>=3.1.6",
     "lark>=1.3.1",
     "lxml>=6.0.2",
     "openai>=2.21.0",
     "path>=17.1.1",
-    "pytest>=9.0.2",
+    "pymupdf>=1.27.2.2",
     "python-dotenv>=1.2.1",
     "pyyaml>=6.0.3",
+    "typer[all]>=0.24.1",
 ]
+
+[project.scripts]
+st-distiller = "main:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=0.25.1",
+    "tqdm>=4.66.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# 静态资源存放于resource/rag目录，不打包到Python包中
+# 安装后用户可自行下载资源包放到对应目录
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

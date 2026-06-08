@@ -13,6 +13,10 @@ file_paths:
   dpo_file: "data/st_dpo_dataset.jsonl"
   golden_file: "data/golden_prompts.json"
   history_file: "data/history.jsonl"
+  # RAG相关路径
+  chroma_db: "resource/rag/chroma_db"
+  oscat_graph_path: "resource/rag/oscat_graph_v5_fused.json"
+  rag_pdf_dir: "resource/rag"
 # 3. 任务目标
 project:
   target_count: 200000               # 目标生成总数

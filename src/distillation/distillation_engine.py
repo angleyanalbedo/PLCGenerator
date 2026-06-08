@@ -32,7 +32,7 @@ from src.config_manager import ConfigManager
 from src.stvailder.stvailder import STValidator
 from src.stvailder import FastValidator
 
-from src.tools.rag_engine import OSCATRAGManager
+from .rag_engine import OSCATRAGManager
 
 try:
     import aiofiles

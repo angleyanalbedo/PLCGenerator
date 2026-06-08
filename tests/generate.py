@@ -33,37 +33,29 @@ except ImportError:
 
 from openai import AsyncOpenAI
 
-# ================= ⚙️ 全局配置区域 =================
-API_KEYS = ["local-vllm-no-key"]
-BASE_URL = "http://localhost:8000/v1"
-MODEL = "industrial-coder"
-
-OUTPUT_FILE = "../st_dataset_local_part.jsonl"
-DPO_FILE = "st_dpo_dataset.jsonl"
-HISTORY_FILE = "st_dataset_r1.jsonl"
-GOLDEN_FILE = "../golden_prompts.json"
-
-TARGET_TOTAL_COUNT = 200000
-MAX_CONCURRENCY = 100  # 🔥 控制并发量 (替代 MAX_WORKERS)
-MAX_RETRIES = 1
-MAX_GOLDEN_EXAMPLES = 50
-
-
-# ====================================================
-
 class AsyncSTDistillationEngine:
-    def __init__(self):
+    def __init__(self, api_keys, base_url, model, output_file, dpo_file, history_file, golden_file, target_total_count, max_concurrency, max_retries, max_golden_examples):
         # 1. 初始化异步客户端
-        self.aclient = AsyncOpenAI(api_key=API_KEYS[0], base_url=BASE_URL)
+        self.aclient = AsyncOpenAI(api_key=api_keys[0], base_url=base_url)
         self.prompts = PromptManager(config_path="../prompts.yaml")
 
+        self.model = model
+        self.output_file = output_file
+        self.dpo_file = dpo_file
+        self.history_file = history_file
+        self.golden_file = golden_file
+        self.target_total_count = target_total_count
+        self.max_retries = max_retries
+        self.max_golden_examples = max_golden_examples
+        self.max_concurrency = max_concurrency
+        
         # 2. 异步锁和信号量
         self.file_lock = asyncio.Lock()
         self.golden_lock = asyncio.Lock()
         self.console_lock = asyncio.Lock()
 
         # 核心：信号量控制最大并发请求数，防止撑爆显存
-        self.semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
+        self.semaphore = asyncio.Semaphore(self.max_concurrency)
 
         # 3. 内存数据
         self.existing_tasks = set()
@@ -76,7 +68,7 @@ class AsyncSTDistillationEngine:
     def load_all_history_sync(self):
         """同步加载历史数据"""
         count = 0
-        for fpath in [HISTORY_FILE, OUTPUT_FILE]:
+        for fpath in [self.history_file, self.output_file]:
             if os.path.exists(fpath):
                 try:
                     with open(fpath, 'r', encoding='utf-8') as f:
@@ -94,9 +86,9 @@ class AsyncSTDistillationEngine:
         print(f"📂 [Init] 已加载历史去重库: {count} 条")
 
     def load_golden_memory_sync(self):
-        if os.path.exists(GOLDEN_FILE):
+        if os.path.exists(self.golden_file):
             try:
-                with open(GOLDEN_FILE, 'r', encoding='utf-8') as f:
+                with open(self.golden_file, 'r', encoding='utf-8') as f:
                     self.golden_examples = json.load(f)
                 print(f"🏆 [Init] 已加载黄金范例: {len(self.golden_examples)} 个")
             except:
@@ -134,10 +126,10 @@ class AsyncSTDistillationEngine:
     async def save_golden_memory_async(self):
         async with self.golden_lock:
             if HAS_AIOFILES:
-                async with aiofiles.open(GOLDEN_FILE, 'w', encoding='utf-8') as f:
+                async with aiofiles.open(self.golden_file, 'w', encoding='utf-8') as f:
                     await f.write(json.dumps(self.golden_examples, ensure_ascii=False, indent=2))
             else:
-                with open(GOLDEN_FILE, 'w', encoding='utf-8') as f:
+                with open(self.golden_file, 'w', encoding='utf-8') as f:
                     json.dump(self.golden_examples, f, ensure_ascii=False, indent=2)
 
     # --- 核心逻辑 (异步化) ---
@@ -146,7 +138,7 @@ class AsyncSTDistillationEngine:
         try:
             # await 异步调用
             response = await self.aclient.chat.completions.create(
-                model=MODEL,
+                model=self.model,
                 messages=self.prompts.get_brainstorm_messages(topic, count),
                 temperature=0.9
             )
@@ -163,7 +155,7 @@ class AsyncSTDistillationEngine:
         if random.random() > 0.7: return base_task
         try:
             response = await self.aclient.chat.completions.create(
-                model=MODEL,
+                model=self.model,
                 messages=self.prompts.get_evolution_prompt(base_task),
                 temperature=0.8
             )
@@ -175,7 +167,7 @@ class AsyncSTDistillationEngine:
         """异步 AI 审查"""
         try:
             response = await self.aclient.chat.completions.create(
-                model=MODEL,
+                model=self.model,
                 messages=self.prompts.get_critique_messages(task, code),
                 temperature=0.1
             )
@@ -206,11 +198,11 @@ class AsyncSTDistillationEngine:
 
             rejected_attempts = []
 
-            for attempt in range(MAX_RETRIES):
+            for attempt in range(self.max_retries):
                 try:
                     # 异步生成
                     response = await self.aclient.chat.completions.create(
-                        model=MODEL, messages=messages, temperature=0.7
+                        model=self.model, messages=messages, temperature=0.7
                     )
                     content = self.clean_json_content(response.choices[0].message.content)
                     data = json.loads(content)
@@ -247,13 +239,13 @@ class AsyncSTDistillationEngine:
                                 "rejected": rejected_attempts[-1],
                                 "metadata": {"critique": "Self-Correction"}
                             }
-                            await self.append_to_file(DPO_FILE, dpo_entry)
+                            await self.append_to_file(self.dpo_file, dpo_entry)
 
                         # 更新黄金库
                         if 200 < len(code) < 2000:
                             async with self.golden_lock:
                                 self.golden_examples.append((task, code))
-                                if len(self.golden_examples) > MAX_GOLDEN_EXAMPLES:
+                                if len(self.golden_examples) > self.max_golden_examples:
                                     self.golden_examples.pop(0)
                             # 异步保存黄金库
                             await self.save_golden_memory_async()
@@ -267,7 +259,7 @@ class AsyncSTDistillationEngine:
                         }
 
                         # 写入主文件
-                        await self.append_to_file(OUTPUT_FILE, result)
+                        await self.append_to_file(self.output_file, result)
 
                         # 记录已完成
                         self.existing_tasks.add(raw_task)
@@ -295,7 +287,7 @@ class AsyncSTDistillationEngine:
             return None
 
     async def main_loop(self):
-        print(f"🚀 Async Engine Started | Max Concurrency: {MAX_CONCURRENCY}")
+        print(f"🚀 Async Engine Started | Max Concurrency: {self.max_concurrency}")
 
         domains = ["Motion Control", "Closed Loop Control", "Safety Logic", "Data Processing", "Communication"]
         industries = ["Packaging", "Water Treatment", "Automotive", "Food & Bev", "Pharmaceutical"]
@@ -303,10 +295,10 @@ class AsyncSTDistillationEngine:
         # 任务集合，用于 await
         pending_tasks = set()
 
-        while len(self.existing_tasks) < TARGET_TOTAL_COUNT:
+        while len(self.existing_tasks) < self.target_total_count:
 
             # 动态补货：当正在运行的任务数少于最大并发数时，生成新题目
-            if len(pending_tasks) < MAX_CONCURRENCY * 1.5:
+            if len(pending_tasks) < self.max_concurrency * 1.5:
                 topic = f"{random.choice(domains)} in {random.choice(industries)}"
                 print(f"🧠 Brainstorming: {topic}...")
 
@@ -322,7 +314,7 @@ class AsyncSTDistillationEngine:
 
             # 打印进度
             if len(self.existing_tasks) % 10 == 0:
-                print(f"💓 Progress: {len(self.existing_tasks)}/{TARGET_TOTAL_COUNT} | Running: {len(pending_tasks)}")
+                print(f"💓 Progress: {len(self.existing_tasks)}/{self.target_total_count} | Running: {len(pending_tasks)}")
 
             # 释放控制权，避免死循环占用 CPU
             await asyncio.sleep(1)
@@ -337,5 +329,17 @@ if __name__ == "__main__":
     if platform.system() == 'Windows':
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-    engine = AsyncSTDistillationEngine()
+    engine = AsyncSTDistillationEngine(
+        api_keys=["local-vllm-no-key"],
+        base_url="http://localhost:8000/v1",
+        model="industrial-coder",
+        output_file="../st_dataset_local_part.jsonl",
+        dpo_file="st_dpo_dataset.jsonl",
+        history_file="st_dataset_r1.jsonl",
+        golden_file="../golden_prompts.json",
+        target_total_count=200000,
+        max_concurrency=100,
+        max_retries=1,
+        max_golden_examples=50
+    )
     asyncio.run(engine.main_loop())

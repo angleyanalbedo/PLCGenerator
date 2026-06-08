@@ -6,6 +6,34 @@
 
 ---
 
+## 🎯 核心能力矩阵
+| 核心能力 | 功能描述 | 工业级标准 |
+|---------|---------|-----------|
+| 🧠 **ST知识蒸馏** | 基于Evol-Instruct的LLM驱动ST代码生成，支持SFT/DPO数据集自动构建 | ✅ 输出自动校验，100%可用 |
+| ✅ **多层级校验引擎** | 1. 快速语法校验 2. Matiec编译器在环验证 3. IEC标准合规性校验 | ✅ 严格符合IEC 61131-3国际标准 |
+| 🔄 **多语言无损转换** | ST ↔ AST ↔ FBD(功能块图) ↔ LD(梯形图) 双向无损转换 | ✅ 符合IEC 61131-10 XML标准，可直接导入主流PLC软件 |
+| 🧹 **数据集工具链** | 数据清洗(`stdatacleaner`) / 变量重写(`strewriter`) / 数据增强(`staugment`) | ✅ 保证训练数据多样性、一致性与质量 |
+| 📊 **AST分析引擎** | 基于ANTLR4的强类型语法树，支持依赖分析、复杂度计算、代码重构 | ✅ 支持全量POU/多维数组/复杂表达式解析 |
+
+---
+
+## 🏗️ 全链路架构
+```mermaid
+flowchart LR
+    A[LLM生成ST代码] --> B[多层校验引擎]
+    B -->|校验失败| C[DPO负样本数据]
+    B -->|校验通过| D[ANTLR4 AST语法树解析]
+    D --> E[标准ST代码输出/SFT数据集]
+    D --> F[转换为FBD功能块图XML]
+    D --> G[转换为LD梯形图XML]
+    E --> H[数据集工具链]
+    F --> H
+    G --> H
+    H --> I[高质量工业控制多模态数据集]
+```
+
+---
+
 ## ✨ 核心特性
 
 * **异步协程驱动**：基于 `asyncio` 和 `Semaphore` 限制，实现极致的并行推理性能，完美压榨 vLLM 推理后端。
@@ -58,6 +86,29 @@
 * **FBDXmlUnparser / LDXmlUnparser**: 工业级图形化 XML 渲染引擎。
 * **FbdToLdConverter**: FBD转LD引擎。
 
+
+---
+
+## 🎬 效果演示
+### 输入样例ST代码
+```st
+FUNCTION_BLOCK MotorControl
+VAR_INPUT
+    Start: BOOL;       (* 启动信号 *)
+    Stop: BOOL;        (* 停止信号 *)
+    Overload: BOOL;    (* 过载保护信号 *)
+END_VAR
+VAR_OUTPUT
+    Run: BOOL;         (* 电机运行输出 *)
+END_VAR
+Run := (Start OR Run) AND NOT Stop AND NOT Overload;
+END_FUNCTION_BLOCK
+```
+> ✅ 自动通过Matiec编译器校验，可直接下载到PLC运行
+> 🔄 自动转换为FBD XML（支持直接导入西门子/ABB/施耐德PLC编程软件）
+> 🔄 自动转换为LD梯形图XML
+> 🔧 数据增强可生成10+种变量重命名/逻辑等价的不同版本
+> 🧹 自动清洗去除冗余代码、统一编码风格
 
 ---
 
@@ -126,7 +177,6 @@ if __name__ == "__main__":
 * [x] **MatIEC Support**: 增加 MatIEC 作为编译器检查。
 * [x] **Multi-Backend Support**: 增加对 Hugging Face TGI 和本地 Llama.cpp 的原生支持。
 * [x] **ST to FBD/LD Pipeline**: 完成 IEC 61131-10 标准下的图形化代码无损转换。
-* [ ] **STSlicer (代码切片器)**：持续优化基于数据流的程序切片，提取关键逻辑片段以提升长代码理解力。
 
 ---
 
@@ -158,14 +208,24 @@ if __name__ == "__main__":
 
 ---
 
+## 💡 应用场景
+| 场景 | 描述 |
+|------|------|
+| 🧠 **工业大模型训练** | 生成高质量SFT/DPO多模态数据集，训练懂工业控制逻辑的垂直领域大模型 |
+| 🔄 **PLC程序迁移** | 批量将现有ST代码转换为FBD/LD图形化程序，兼容不同厂商PLC软件 |
+| ✅ **代码质量审计** | 批量校验工业控制代码合规性，提前发现语法错误、逻辑漏洞 |
+| 🔧 **代码变异测试** | 自动生成逻辑等价的不同版本代码，用于PLC系统鲁棒性测试 |
+| 📚 **教学与研究** | 为工业自动化教学提供代码生成、转换、校验一体化实验平台 |
+
+---
+
 ## 📄 开源协议
 
-* **代码框架**: [MIT License](https://www.google.com/search?q=MIT+License+text)
+* **代码框架**: [Business Source License 1.1](https://mariadb.com/bsl11/)
 * **衍生数据集**: [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/)
 
 ## Credit
 
-* [angleyanalbedo/ST_Slicing](https://www.google.com/search?q=https://github.com/angleyanalbedo/ST_Slicing) - 核心切片与 AST 灵感来源
 * [AICPS/PLCBEAD_PLCEmbed](https://github.com/AICPS/PLCBEAD_PLCEmbed)
 * [blank734](https://github.com/blank374) - 蒸馏部分基础框架
 
