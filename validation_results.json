@@ -1,0 +1,6 @@
+{
+  "fast_validator": 63.0,
+  "ast_parser": 92.0,
+  "matiec_compiler": 83.0,
+  "sample_size": 100
+}
